@@ -1,6 +1,9 @@
 package com.julio_compressor.myblog.controller;
 
+import com.julio_compressor.myblog.exceptions.ExeptionStatus;
 import com.julio_compressor.myblog.model.Article;
+import com.julio_compressor.myblog.model.Category;
+import com.julio_compressor.myblog.repository.CategoryRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -9,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 import com.julio_compressor.myblog.repository.ArticleRepository;
 
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.List;
 
 @RestController
@@ -17,9 +19,14 @@ import java.util.List;
 public class ArticleController {
 
     private final ArticleRepository articleRepository;
+    private final CategoryRepository categoryRepository;
 
-    public ArticleController(ArticleRepository articleRepository) {
+    public ArticleController(
+            ArticleRepository articleRepository,
+            CategoryRepository categoryRepository
+    ) {
         this.articleRepository = articleRepository;
+        this.categoryRepository = categoryRepository;
     }
 
     @GetMapping
@@ -41,11 +48,46 @@ public class ArticleController {
     }
 
     @PostMapping
-    public ResponseEntity<Article> createArticle(@RequestBody Article article) {
+    public ResponseEntity<Article> createArticle(@RequestBody Article article) throws Exception {
+        if (article.getTitle() == null || article.getTitle().trim().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        if (isTitleExist(article)) {
+            throw new ExeptionStatus("Title already exist", "CONFLICT");
+        }
         article.setCreatedAt(LocalDateTime.now());
         article.setUpdatedAt(LocalDateTime.now());
+        if (article.getCategory() != null) {
+            Category category = categoryRepository.findById(article.getCategory().getId()).orElse(null);
+            if (category == null) {
+                return ResponseEntity.badRequest().build();
+            }
+            article.setCategory(category);
+        }
         Article savedArticle = articleRepository.save(article);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedArticle);
+    }
+
+    @PutMapping("{id}")
+    public ResponseEntity<Article> updateArticle(@PathVariable Long id, @RequestBody Article articleDetails) {
+        Article article = articleRepository.findById(id).orElse(null);
+        if (article == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (isTitleExist(article)) {
+            throw new ExeptionStatus("Title already exist", "CONFLICT");
+        }
+        article.setTitle(articleDetails.getTitle());
+        article.setContent(articleDetails.getContent());
+        article.setUpdatedAt(LocalDateTime.now());
+        if (articleDetails.getCategory() != null) {
+            Category category = categoryRepository.findById(articleDetails.getCategory().getId()).orElse(null);
+            if (category == null) {
+                return ResponseEntity.badRequest().body(null);
+            }
+        }
+        Article savedArticle = articleRepository.save(article);
+        return ResponseEntity.ok(savedArticle);
     }
 
     @DeleteMapping("{id}")
@@ -103,5 +145,12 @@ public class ArticleController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(latestArticles);
+    }
+    private Boolean isTitleExist(Article article) {
+        List <Article> existingArticles= articleRepository.findByTitle(article.getTitle());
+        if (!existingArticles.isEmpty()) {
+            return true;
+        }
+        return false;
     }
 }
