@@ -1,5 +1,7 @@
 package com.julio_compressor.myblog.dto;
 
+import com.julio_compressor.myblog.model.Author;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -10,6 +12,8 @@ public class ArticleDTO {
     private LocalDateTime updatedAt;
     private String categoryName;
     private List<String> imageUrls;
+    private List<String> authors;
+    private List<String> authorContributions;
 
     // Getters et setters
 
@@ -60,5 +64,21 @@ public class ArticleDTO {
 
     public void setImageUrls(List<String> imageUrls) {
         this.imageUrls = imageUrls;
+    }
+
+    public List<String> getAuthors() {
+        return authors;
+    }
+
+    public void setAuthors(List<String> authors) {
+        this.authors = authors;
+    }
+
+    public List<String> getAuthorContributions() {
+        return authorContributions;
+    }
+
+    public void setAuthorContributions(List<String> authorContributions) {
+        this.authorContributions = authorContributions;
     }
 }

@@ -2,17 +2,13 @@ package com.julio_compressor.myblog.controller;
 
 import com.julio_compressor.myblog.dto.ArticleDTO;
 import com.julio_compressor.myblog.exceptions.ExeptionStatus;
-import com.julio_compressor.myblog.model.Article;
-import com.julio_compressor.myblog.model.Category;
-import com.julio_compressor.myblog.model.Image;
-import com.julio_compressor.myblog.repository.CategoryRepository;
-import com.julio_compressor.myblog.repository.ImageRepository;
+import com.julio_compressor.myblog.model.*;
+import com.julio_compressor.myblog.repository.*;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.julio_compressor.myblog.repository.ArticleRepository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,15 +22,21 @@ public class ArticleController {
     private final ArticleRepository articleRepository;
     private final CategoryRepository categoryRepository;
     private final ImageRepository imageRepository;
+    private final AuthorRepository authorRepository;
+    private final ArticleAuthorRepository articleAuthorRepository;
 
     public ArticleController(
             ArticleRepository articleRepository,
             CategoryRepository categoryRepository,
-            ImageRepository imageRepository
+            ImageRepository imageRepository,
+            AuthorRepository authorRepository,
+            ArticleAuthorRepository articleAuthorRepository
     ) {
         this.articleRepository = articleRepository;
         this.categoryRepository = categoryRepository;
         this.imageRepository = imageRepository;
+        this.authorRepository = authorRepository;
+        this.articleAuthorRepository = articleAuthorRepository;
     }
 
     @GetMapping
@@ -64,35 +66,46 @@ public class ArticleController {
         if (isTitleExist(article)) {
             throw new ExeptionStatus("Title already exist", "CONFLICT");
         }
+
         article.setCreatedAt(LocalDateTime.now());
         article.setUpdatedAt(LocalDateTime.now());
+
+        // Gestion de la catégorie
         if (article.getCategory() != null) {
-            Category category = categoryRepository.findById(article.getCategory().getId()).orElse(null);
-            if (category == null) {
-                return ResponseEntity.badRequest().build();
-            }
+            Category category = categoryRepository.findById(article.getCategory().getId())
+                    .orElseThrow(() -> new ExeptionStatus("Category not found", "BAD_REQUEST"));
             article.setCategory(category);
         }
+
+        // Gestion des images
         if (article.getImages() != null && !article.getImages().isEmpty()) {
-            List<Image> validImages = new ArrayList<>();
-            for (Image image : article.getImages()) {
-                if (image.getId() != null) {
-                    // Vérification des images existantes
-                    Image existingImage = imageRepository.findById(image.getId()).orElse(null);
-                    if (existingImage != null) {
-                        validImages.add(existingImage);
-                    } else {
-                        return ResponseEntity.badRequest().body(null);
-                    }
-                } else {
-                    // Création de nouvelles images
-                    Image savedImage = imageRepository.save(image);
-                    validImages.add(savedImage);
-                }
-            }
+            List<Image> validImages = validateAndSaveImages(article.getImages());
             article.setImages(validImages);
         }
+
+        // Gestion des auteurs
+        List<ArticleAuthor> articleAuthors = new ArrayList<>();
+        if (article.getArticleAuthors() != null) {
+            for (ArticleAuthor articleAuthor : article.getArticleAuthors()) {
+                Author author = authorRepository.findById(articleAuthor.getAuthor().getId())
+                        .orElseThrow(() -> new ExeptionStatus("Author not found", "BAD_REQUEST"));
+
+                ArticleAuthor newArticleAuthor = new ArticleAuthor();
+                newArticleAuthor.setAuthor(author);
+                newArticleAuthor.setContribution(articleAuthor.getContribution());
+                newArticleAuthor.setArticle(article);
+                articleAuthors.add(newArticleAuthor);
+            }
+        }
+
         Article savedArticle = articleRepository.save(article);
+
+        // Sauvegarde des relations article-auteur
+        if (!articleAuthors.isEmpty()) {
+            articleAuthors.forEach(aa -> aa.setArticle(savedArticle));
+            articleAuthorRepository.saveAll(articleAuthors);
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(savedArticle));
     }
 
@@ -119,24 +132,39 @@ public class ArticleController {
             List<Image> validImages = new ArrayList<>();
             for (Image image : articleDetails.getImages()) {
                 if (image.getId() != null) {
-                    // Vérification des images existantes
                     Image existingImage = imageRepository.findById(image.getId()).orElse(null);
                     if (existingImage != null) {
                         validImages.add(existingImage);
                     } else {
-                        return ResponseEntity.badRequest().build(); // Image non trouvée, retour d'une erreur
+                        return ResponseEntity.badRequest().build();
                     }
                 } else {
-                    // Création de nouvelles images
                     Image savedImage = imageRepository.save(image);
                     validImages.add(savedImage);
                 }
             }
-            // Mettre à jour la liste des images associées
             article.setImages(validImages);
         } else {
-            // Si aucune image n'est fournie, on nettoie la liste des images associées
             article.getImages().clear();
+        }
+        if (articleDetails.getArticleAuthors() != null) {
+            // Supprime les anciennes relations
+            articleAuthorRepository.deleteByArticle(article);
+
+            List<ArticleAuthor> newArticleAuthors = articleDetails.getArticleAuthors().stream()
+                    .map(aa -> {
+                        Author author = authorRepository.findById(aa.getAuthor().getId())
+                                .orElseThrow(() -> new ExeptionStatus("Author not found", "BAD_REQUEST"));
+
+                        ArticleAuthor newAa = new ArticleAuthor();
+                        newAa.setAuthor(author);
+                        newAa.setArticle(article);
+                        newAa.setContribution(aa.getContribution());
+                        return newAa;
+                    })
+                    .collect(Collectors.toList());
+
+            articleAuthorRepository.saveAll(newArticleAuthors);
         }
         Article savedArticle = articleRepository.save(article);
         return ResponseEntity.ok(convertToDTO(savedArticle));
@@ -205,6 +233,20 @@ public class ArticleController {
         }
         return false;
     }
+    private List<Image> validateAndSaveImages(List<Image> images) {
+        List<Image> validImages = new ArrayList<>();
+        for (Image image : images) {
+            if (image.getId() != null) {
+                Image existingImage = imageRepository.findById(image.getId())
+                        .orElseThrow(() -> new ExeptionStatus("Image not found", "BAD_REQUEST"));
+                validImages.add(existingImage);
+            } else {
+                Image savedImage = imageRepository.save(image);
+                validImages.add(savedImage);
+            }
+        }
+        return validImages;
+    }
     private ArticleDTO convertToDTO(Article article) {
         ArticleDTO articleDTO = new ArticleDTO();
         articleDTO.setId(article.getId());
@@ -217,6 +259,18 @@ public class ArticleController {
         if (article.getImages() != null) {
             articleDTO.setImageUrls(article.getImages().stream().map(Image::getUrl).collect(Collectors.toList()));
         }
+        if (article.getArticleAuthors() != null) {
+            List<String> authors = article.getArticleAuthors().stream()
+                    .map(aa -> aa.getAuthor().getFirstName() + " " + aa.getAuthor().getLastName())
+                    .collect(Collectors.toList());
+            articleDTO.setAuthors(authors);
+
+            List<String> contributions = article.getArticleAuthors().stream()
+                    .map(ArticleAuthor::getContribution)
+                    .collect(Collectors.toList());
+            articleDTO.setAuthorContributions(contributions);
+        }
+
         return articleDTO;
     }
 }
