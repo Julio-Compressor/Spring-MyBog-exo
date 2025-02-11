@@ -1,32 +1,19 @@
 package com.julio_compressor.myblog.dto;
 
-import java.util.List;
+import com.julio_compressor.myblog.model.Category;
 
-public class CategoryDTO {
-    private Long id;
-    private String name;
-    private List<ArticleDTO> articles;
+import java.io.Serializable;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public List<ArticleDTO> getArticles() {
-        return articles;
-    }
-    public void setArticles(List<ArticleDTO> articles) {
-        this.articles = articles;
+public record CategoryDTO(
+        Long id,
+        String name
+) implements Serializable {
+    public static CategoryDTO mapFromEntity(Category category) {
+        return new CategoryDTO(
+                category.getId(),
+                category.getName()
+        );
     }
 }
+
+

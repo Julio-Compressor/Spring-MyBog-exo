@@ -1,84 +1,34 @@
 package com.julio_compressor.myblog.dto;
 
-import com.julio_compressor.myblog.model.Author;
+import com.julio_compressor.myblog.model.Article;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public class ArticleDTO {
-    private Long id;
-    private String title;
-    private String content;
-    private LocalDateTime updatedAt;
-    private String categoryName;
-    private List<String> imageUrls;
-    private List<String> authors;
-    private List<String> authorContributions;
-
-    // Getters et setters
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public String getCategoryName() {
-        return categoryName;
-    }
-
-    public void setCategoryName(String categoryName) {
-        this.categoryName = categoryName;
-    }
-
-    public List<String> getImageUrls() {
-        return imageUrls;
-    }
-
-    public void setImageUrls(List<String> imageUrls) {
-        this.imageUrls = imageUrls;
-    }
-
-    public List<String> getAuthors() {
-        return authors;
-    }
-
-    public void setAuthors(List<String> authors) {
-        this.authors = authors;
-    }
-
-    public List<String> getAuthorContributions() {
-        return authorContributions;
-    }
-
-    public void setAuthorContributions(List<String> authorContributions) {
-        this.authorContributions = authorContributions;
+/**
+ * DTO for {@link Article}
+ */
+public record ArticleDTO(
+        Long id,
+        String title,
+        String content,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt,
+        CategoryDTO category,
+        List<ImageDTO> images,
+        List<ArticleAuthorDTO> articleAuthors
+) implements Serializable {
+    public static ArticleDTO mapFromEntity(Article article) {
+        return new ArticleDTO(
+                article.getId(),
+                article.getTitle(),
+                article.getContent(),
+                article.getCreatedAt(),
+                article.getUpdatedAt(),
+                article.getCategory() != null ? CategoryDTO.mapFromEntity(article.getCategory()) : null,
+                article.getImages().stream().map(ImageDTO::mapFromEntity).toList(),
+                article.getArticleAuthors().stream().map(ArticleAuthorDTO::mapFromEntity).toList()
+        );
     }
 }
