@@ -36,7 +36,6 @@ public class ArticleService {
         this.articleAuthorRepository = articleAuthorRepository;
     }
 
-    // Récupérer tous les articles
     public List<ArticleDTO> getAllArticles() {
         List<Article> articles = articleRepository.findAll();
         if (articles.isEmpty()) {
@@ -47,14 +46,12 @@ public class ArticleService {
                 .collect(Collectors.toList());
     }
 
-    // Récupérer un article par son ID
     public ArticleDTO getArticleById(Long id) {
         Article article = articleRepository.findById(id)
-                .orElseThrow(() -> new ExceptionStatus("Article not found", "NOT_FOUND"));
+                .orElseThrow(() -> new ExceptionStatus("Article not found with id: " + id, "NOT_FOUND"));
         return ArticleDTO.mapFromEntity(article);
     }
 
-    // Créer un nouvel article
     @Transactional
     public ArticleDTO createArticle(ArticleCreateDTO articleCreateDTO) {
         // Validation du titre
@@ -87,7 +84,6 @@ public class ArticleService {
 
         Article savedArticle = articleRepository.save(article);
 
-        // Gestion des auteurs
         if (articleCreateDTO.authors() != null && !articleCreateDTO.authors().isEmpty()) {
             List<ArticleAuthor> articleAuthors = articleCreateDTO.authors().stream()
                     .map(authorDTO -> {
@@ -105,13 +101,11 @@ public class ArticleService {
             articleAuthorRepository.saveAll(articleAuthors);
         }
 
-        // Rechargement de l'article pour avoir toutes les relations
         return ArticleDTO.mapFromEntity(
                 articleRepository.findById(savedArticle.getId()).orElseThrow()
         );
     }
 
-    // Mettre à jour un article
     @Transactional
     public ArticleDTO updateArticle(Long id, ArticleCreateDTO articleUpdateDTO) {
         Article article = articleRepository.findById(id)
@@ -122,19 +116,16 @@ public class ArticleService {
             throw new ExceptionStatus("Title already exists", "CONFLICT");
         }
 
-        // Mise à jour des champs basiques
         article.setTitle(articleUpdateDTO.title());
         article.setContent(articleUpdateDTO.content());
         article.setUpdatedAt(LocalDateTime.now());
 
-        // Mise à jour de la catégorie
         if (articleUpdateDTO.categoryId() != null) {
             Category category = categoryRepository.findById(articleUpdateDTO.categoryId())
                     .orElseThrow(() -> new ExceptionStatus("Category not found", "BAD_REQUEST"));
             article.setCategory(category);
         }
 
-        // Mise à jour des images
         if (articleUpdateDTO.imageIds() != null) {
             List<Image> images = imageRepository.findAllById(articleUpdateDTO.imageIds());
             if (images.size() != articleUpdateDTO.imageIds().size()) {
@@ -143,12 +134,9 @@ public class ArticleService {
             article.setImages(images);
         }
 
-        // Mise à jour des auteurs
         if (articleUpdateDTO.authors() != null) {
-            // Suppression des anciennes relations
             articleAuthorRepository.deleteByArticle(article);
 
-            // Création des nouvelles relations
             List<ArticleAuthor> articleAuthors = articleUpdateDTO.authors().stream()
                     .map(authorDTO -> {
                         Author author = authorRepository.findById(authorDTO.authorId())
@@ -165,20 +153,17 @@ public class ArticleService {
             articleAuthorRepository.saveAll(articleAuthors);
         }
 
-        // Sauvegarde et conversion en DTO
         Article savedArticle = articleRepository.save(article);
         return ArticleDTO.mapFromEntity(savedArticle);
     }
 
-    // Supprimer un article
     @Transactional
     public void deleteArticle(Long id) {
         Article article = articleRepository.findById(id)
-                .orElseThrow(() -> new ExceptionStatus("Article not found", "NOT_FOUND"));
+                .orElseThrow(() -> new ExceptionStatus("Article not found with id: " + id, "NOT_FOUND"));
         articleRepository.delete(article);
     }
 
-    // Recherche par titre
     public List<ArticleDTO> searchByTitle(String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new ExceptionStatus("Search query cannot be empty", "BAD_REQUEST");
@@ -192,7 +177,6 @@ public class ArticleService {
                 .collect(Collectors.toList());
     }
 
-    // Recherche par contenu
     public List<ArticleDTO> searchByContent(String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new ExceptionStatus("Search query cannot be empty", "BAD_REQUEST");
@@ -206,7 +190,6 @@ public class ArticleService {
                 .collect(Collectors.toList());
     }
 
-    // Récupérer les articles créés après une date
     public List<ArticleDTO> getArticlesCreatedAfter(LocalDateTime date) {
         if (date == null) {
             throw new ExceptionStatus("Date cannot be null", "BAD_REQUEST");
@@ -220,7 +203,6 @@ public class ArticleService {
                 .collect(Collectors.toList());
     }
 
-    // Récupérer les 5 derniers articles
     public List<ArticleDTO> getLatestArticles() {
         Pageable pageable = PageRequest.of(0, 5);
         List<Article> articles = articleRepository.findTop5ByOrderByCreatedAtDesc(pageable);
@@ -232,7 +214,6 @@ public class ArticleService {
                 .collect(Collectors.toList());
     }
 
-    // Méthode utilitaire pour vérifier si un titre existe déjà
     private boolean isTitleExist(String title) {
         return !articleRepository.findByTitle(title).isEmpty();
     }
